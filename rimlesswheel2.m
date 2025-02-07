@@ -21,7 +21,7 @@ tspan = [0 4];          % simulation timespan
 % Collision even stops the ode and gives back the time and trajectory of
 % the segment
 options = odeset('Events', @(t,y)collisionEvent(t,y,params), ...
-                'RelTol', 1e-12, 'AbsTol', 1e-12, ...
+                'RelTol', 1e-8, 'AbsTol', 1e-8, ...
                 'MaxStep', 0.1);
 
 % Initialize storage for complete trajectory
@@ -106,13 +106,14 @@ for i = 1:10:length(T)
     drawnow;
    
 end
-
+%%
+saveAnimation(T, Y, params, 'rimless_wheel.gif', 10, 0.01);
 
 %%
 
 % Phase portrait plot
 figure;
-plot(Y(:,1), Y(:,2), 'b.', 'MarkerSize', 2);
+plot(Y(:,1), Y(:,2),LineWidth=2,Color='b');
 hold on;
 
 theta_range = linspace(min(Y(:,1)), max(Y(:,1)), 20);
@@ -228,3 +229,86 @@ function y_plus = collisionMap(y_minus, params)
     y_plus = [theta_plus; omega_plus; x_plus];
 end
 
+%%
+function saveAnimation(T, Y, params, filename, stepSize, delayTime)
+    % saveAnimation - Saves rimless wheel animation as a GIF
+    % Inputs:
+    %   T - time vector
+    %   Y - state vector [theta, omega, x]
+    %   params - structure with wheel parameters
+    %   filename - output GIF filename
+    %   stepSize - frame sampling rate (default: 10)
+    %   delayTime - time between frames in seconds (default: 0.1)
+    
+    if nargin < 5
+        stepSize = 10;
+    end
+    if nargin < 6
+        delayTime = 0.1;
+    end
+    
+    figure('Position', [100 100 800 600]);
+    
+    % First frame
+    plotFrame(Y(1,:), params);
+    
+    % Capture and save first frame
+    frame = getframe(gcf);
+    im = frame2im(frame);
+    [imind,cm] = rgb2ind(im,256);
+    imwrite(imind,cm,filename,'gif','Loopcount',inf,'DelayTime',delayTime);
+    
+    % Remaining frames
+    for i = 2:stepSize:length(T)
+        plotFrame(Y(i,:), params);
+        
+        % Capture and append frame
+        frame = getframe(gcf);
+        im = frame2im(frame);
+        [imind,cm] = rgb2ind(im,256);
+        imwrite(imind,cm,filename,'gif','WriteMode','append','DelayTime',delayTime);
+    end
+end
+
+function plotFrame(state, params)
+    % Helper function to plot a single frame
+    clf;
+    hold on;
+    grid on;
+    
+    % Extract state
+    theta = state(1);
+    x_contact = state(3);
+    
+    % Calculate positions
+    y_contact = x_contact * tan(params.gamma);
+    x_hub = x_contact - params.l*sin(theta);
+    y_hub = y_contact + params.l*cos(theta);
+    
+    % Draw slope
+    x_ground = [x_hub-3 x_hub+3];
+    y_ground = x_ground * tan(params.gamma);
+    plot(x_ground, y_ground, 'k', 'LineWidth', 2);
+    
+    % Draw spokes
+    for j = 1:params.n
+        spoke_angle = theta + (j-1)*params.alpha;
+        x_spoke = [x_hub x_hub + params.l*sin(spoke_angle)];
+        y_spoke = [y_hub y_hub - params.l*cos(spoke_angle)];
+        plot(x_spoke, y_spoke, 'b', 'LineWidth', 2);
+        plot(x_spoke(2), y_spoke(2), 'k.', 'MarkerSize', 10);
+    end
+    
+    % Draw hub and contact point
+    plot(x_hub, y_hub, 'ro', 'MarkerSize', 10, 'MarkerFaceColor', 'r');
+    plot(x_contact, y_contact, 'go', 'MarkerSize', 8, 'MarkerFaceColor', 'g');
+    
+    % Set axes
+    axis equal;
+    set(gca, 'XTickLabel', [], 'YTickLabel', []);
+    xlim([x_hub-2 x_hub+2]);
+    title('Rimless Wheel Simulation');
+    xlabel('X Position (m)');
+    ylabel('Y Position (m)');
+    drawnow;
+end
